@@ -1,7 +1,7 @@
 const path = require('path');
 const bcrypt = require('bcrypt');
-const crypto = require('crypto');
-const { CipherSeed } = require('aezeed');
+const {promisify} = require('util');
+const scrypt = promisify(require('crypto').scrypt);
 const iocane = require("iocane");
 const compose = require("docker-compose");
 const diskLogic = require('logic/disk.js');
@@ -146,12 +146,10 @@ async function deriveUmbrelSeed(user) {
     return;
   }
   const mnemonic = (await seed(user)).seed.join(' ');
-  const {entropy} = CipherSeed.fromMnemonic(mnemonic);
-  const umbrelSeed = crypto
-    .createHmac('sha256', entropy)
-    .update('umbrel-seed')
-    .digest('hex');
-  return diskLogic.writeUmbrelSeedFile(umbrelSeed);
+  const salt = 'umbrel-seed';
+  const umbrelSeed = await scrypt(mnemonic, salt, 32, {N: 16384, r: 8, p: 1});
+  const umbrelSeedHex = umbrelSeed.toString('hex');
+  return diskLogic.writeUmbrelSeedFile(umbrelSeedHex);
 }
 
 // Log the user into the device. Caches the password if login is successful. Then returns jwt.
